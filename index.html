@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>OpenCV Emotion Detect Example</title>
+</head>
+<body>
+<div id="app">OpenCV</div>
+<label for="imageUpload">画像を選択してください..
+    <input type="file" id="imageUpload" accept="image/*"/>
+</label>
+
+<canvas id="canvas"></canvas>
+<div id="status"></div>
+
+<script src="./lib/opencv.js"></script>
+<script async type="module" src="./face-detect.js"></script>
+<script async type="module" src="./emotion-detect.js"></script>
+<script async type="module" src="./ui.js"></script>
+<script>
+if (typeof cv !== 'undefined') {
+    cv['onRuntimeInitialized'] = async () => {
+        const {setup: faceSetup, detectFaces} = await import('./face-detect.js');
+        const {setup: emotionSetup, detectEmotion} = await import('./emotion-detect.js');
+        const {drawImage, drawEmotionLabels} = await import('./ui.js');
+
+        const imageUpload = document.getElementById('imageUpload');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        await faceSetup();
+        await emotionSetup();
+
+        imageUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        drawImage(ctx, img).then(async () => {
+                            const srcMat = cv.imread(canvas);
+                            const detections = detectFaces(srcMat);
+                            detections.forEach((det) => {
+                                ctx.strokeStyle = 'red';
+                                ctx.lineWidth = 2;
+                                ctx.strokeRect(det.x_min, det.y_min, det.x_max - det.x_min, det.y_max - det.y_min);
+                            });
+                            const emotions = await detectEmotion(detections, srcMat.cols, srcMat.rows, srcMat)
+                            drawEmotionLabels(ctx, emotions);
+                            srcMat.delete();
+                        });
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                console.error('No file selected or file type is unsupported');
+            }
+        });
+    };
+} else {
+    console.error('Failed to load OpenCV.js');
+}
+</script>
+</body>
+</html>
