@@ -1,24 +1,24 @@
-importScripts("./lib/opencv.js");
+importScripts("../lib/opencv.js");
 importScripts("./worker-util.js");
 
-const url = "/models/gender_googlenet.onnx";
+const url = "/models/age_googlenet.onnx";
 
-const genderList = ['Male', 'Female'];
+const ageList = [[0, 2], [4, 6], [8, 12], [15, 20], [25, 32], [38, 43], [48, 53], [60, 100]];
+
+let net;
 
 self.onmessage = (message) => {
     runWithInitialize(() => {
         const [rows, cols, bytes, index] = [...message.data];
-        console.time(`gender-worker-${index}`);
+        console.time(`age-worker-${index}`);
         const srcMat = new cv.matFromArray(rows, cols, cv.CV_8UC4, bytes);
         const result = self.run(srcMat);
+        console.timeEnd(`age-worker-${index}`);
         self.postMessage([index, result]);
         srcMat.delete();
-        console.timeEnd(`gender-worker-${index}`);
     });
 }
 
-let net;
-// download model and cache.
 runWithInitialize = (callback) => {
     if (typeof cv !== 'undefined') {
         if (cv.getBuildInformation) {
@@ -39,13 +39,14 @@ runWithInitialize = (callback) => {
     }
 }
 
-// reference 
+// see
 // https://github.com/onnx/models/blob/main/validated/vision/body_analysis/age_gender/levi_googlenet.py
 function run(srcMat) {
     if (!self.net) {
-        console.error('Gender model not loaded.');
+        console.error('Age model not loaded.');
         return {};
     }
+
     const matC3 = new cv.Mat(srcMat.matSize[0], srcMat.matSize[1], cv.CV_8UC3);
     cv.cvtColor(srcMat, matC3, cv.COLOR_RGBA2BGR);
 
@@ -60,12 +61,12 @@ function run(srcMat) {
 
     self.net.setInput(inputBlob);
     const output = self.net.forward();
-    const result = { gender: genderList[argMax(output.data32F)], source: output.data32F };
+
+    const age = { age: ageList[argMax(output.data32F)], "age-source": output.data32F };
 
     output.delete();
     inputBlob.delete();
     matC3.delete();
 
-    return result;
+    return age;
 }
-

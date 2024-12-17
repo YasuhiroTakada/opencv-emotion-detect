@@ -1,4 +1,4 @@
-importScripts("./lib/opencv.js");
+importScripts("../lib/opencv.js");
 importScripts("./worker-util.js");
 
 const url = "/models/emotion-ferplus-12-int8.onnx";

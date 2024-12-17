@@ -2,72 +2,118 @@
 <html lang="ja">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="icon" type="image/svg" href="/public/icon.svg">
     <link rel="apple-touch-icon" type="image/svg" href="/public/icon.svg">
     <title>OpenCV Emotion Detect Example</title>
+    <style>
+        h1 {
+           text-align: center;
+        }
+        #container {
+            display: grid;
+            margin: 0 auto;
+        }
+        .row {
+            margin: 0 auto;
+            padding: 8px 0;
+        }
+        .row > * {
+            width: 80vw;
+        }
+        #status {
+            font-size: 0.75em;
+        }
+    </style>
 </head>
 
 <body>
-    <div id="app">OpenCV</div>
-    <label for="imageUpload">画像を選択してください..
-        <input type="file" id="imageUpload" accept="image/*" />
-    </label>
+<div id="container">
+    <div class="row">
+        <h1>OpenCV Dnn_Net Example</h1>
+    </div>
+    <div class="row">
+        <label for="imageUpload">画像を選択してください..
+            <input type="file" id="imageUpload" accept="image/*"/>
+        </label>
+    </div>
+    <div class="row">
+        <div id="status"></div>
+    </div>
+    <div class="row">
+        <canvas id="canvas"></canvas>
+    </div>
+</div>
+<script>
+    const imageUpload = document.getElementById('imageUpload');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
 
-    <canvas id="canvas"></canvas>
-    <canvas id="sub-canvas"></canvas>
-    <div id="status"></div>
-    <script async type="module" src="./ui.js"></script>
-    <script>
-        const imageUpload = document.getElementById('imageUpload');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const worker = new Worker('./workers/face-detect-worker.js');
 
-        const worker = new Worker('./face-detect-worker.js');
-        worker.onmessage = (msg) => {
-            const det = msg.data;
-            console.log("worker result", det);
-            if (!det) {
-                console.error("face detect error", msg);
-            }
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(det.left, det.top, det.width, det.height);
-
-            const maxEmotion = Object.keys(det.emotions).reduce((a, b) => det.emotions[a] > det.emotions[b] ? a : b);
-
-            ctx.fillStyle = 'red';
-            ctx.font = '16px Arial';
-            ctx.fillText(`${det.age[0]}-${det.age[1]},${det.gender} ${maxEmotion}:${det.emotions[maxEmotion]}`, det.left, det.top - 5);
-        };
-
-        imageUpload.addEventListener('change', async (event) => {
-            const { drawImage } = await import('./ui.js');
-
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const img = new Image();
-                    img.onload = () => {
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        drawImage(ctx, img);
-                        setTimeout(inferance, 10);
-                    };
-                    img.src = reader.result;
-                };
-                reader.readAsDataURL(file);
-            } else {
-                console.error('No file selected or file type is unsupported');
-            }
-        });
-
-        async function inferance() {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            worker.postMessage([imageData.height, imageData.width, imageData.data]);
+    worker.onmessage = (msg) => {
+        const det = msg.data;
+        console.log("worker result", det);
+        if (!det) {
+            console.error("face detect error", msg);
+            document.getElementById('status').innerHTML = "face detect error";
         }
-    </script>
+        this.drawRect(det);
+        const status = document.createElement("span");
+        status.textContent = JSON.stringify(det);
+        document.getElementById('status').append(status);
+    };
+
+    worker.onerror = (err) => {
+        console.error("worker error", err);
+        document.getElementById('status').innerHTML = `face detect error : ${err.message}`;
+    }
+
+    imageUpload.addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    drawImage(ctx, img);
+                    setTimeout(run, 10);
+                };
+                img.src = reader.result;
+            };
+            document.getElementById('status').innerHTML = "";
+            reader.readAsDataURL(file);
+        } else {
+            console.error('No file selected or file type is unsupported');
+        }
+    });
+
+    async function run() {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        worker.postMessage([imageData.height, imageData.width, imageData.data]);
+    }
+
+    function drawImage(ctx, img) {
+        const width = img.width;
+        const height = img.height;
+        // Draw the image on the canvas
+        ctx.drawImage(img, 0, 0, width, height);
+    }
+
+    function drawRect(det) {
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(det.left, det.top, det.width, det.height);
+
+        const maxEmotion = Object.keys(det.emotions).reduce((a, b) => det.emotions[a] > det.emotions[b] ? a : b);
+
+        ctx.fillStyle = 'red';
+        ctx.font = '16px Arial';
+        ctx.fillText(`${det.age[0]}-${det.age[1]},${det.gender} ${maxEmotion}:${det.emotions[maxEmotion]}`, det.left, det.top - 5);
+    }
+</script>
 </body>
 </html>
