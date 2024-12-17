@@ -1,0 +1,21 @@
+{
+  "name": "opencv-emotion-detect",
+  "version": "1.0.0",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "serve": "npx http-server ./"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YasuhiroTakada/opencv-emotion-detect.git"
+  },
+  "author": "Yasuhiro Tkada",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/YasuhiroTakada/opencv-emotion-detect/issues"
+  },
+  "homepage": "https://github.com/YasuhiroTakada/opencv-emotion-detect#readme",
+  "description": ""
+}

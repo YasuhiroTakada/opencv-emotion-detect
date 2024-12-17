@@ -1,38 +1,50 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg" href="/public/icon.svg">
+    <link rel="apple-touch-icon" type="image/svg" href="/public/icon.svg">
     <title>OpenCV Emotion Detect Example</title>
 </head>
+
 <body>
-<div id="app">OpenCV</div>
-<label for="imageUpload">画像を選択してください..
-    <input type="file" id="imageUpload" accept="image/*"/>
-</label>
+    <div id="app">OpenCV</div>
+    <label for="imageUpload">画像を選択してください..
+        <input type="file" id="imageUpload" accept="image/*" />
+    </label>
 
-<canvas id="canvas"></canvas>
-<div id="status"></div>
-
-<script src="./lib/opencv.js"></script>
-<script async type="module" src="./face-detect.js"></script>
-<script async type="module" src="./emotion-detect.js"></script>
-<script async type="module" src="./ui.js"></script>
-<script>
-if (typeof cv !== 'undefined') {
-    cv['onRuntimeInitialized'] = async () => {
-        const {setup: faceSetup, detectFaces} = await import('./face-detect.js');
-        const {setup: emotionSetup, detectEmotion} = await import('./emotion-detect.js');
-        const {drawImage, drawEmotionLabels} = await import('./ui.js');
-
+    <canvas id="canvas"></canvas>
+    <canvas id="sub-canvas"></canvas>
+    <div id="status"></div>
+    <script async type="module" src="./ui.js"></script>
+    <script>
         const imageUpload = document.getElementById('imageUpload');
         const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-        await faceSetup();
-        await emotionSetup();
+        const worker = new Worker('./face-detect-worker.js');
+        worker.onmessage = (msg) => {
+            const det = msg.data;
+            console.log("worker result", det);
+            if (!det) {
+                console.error("face detect error", msg);
+            }
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(det.left, det.top, det.width, det.height);
 
-        imageUpload.addEventListener('change', (event) => {
+            const maxEmotion = Object.keys(det.emotions).reduce((a, b) => det.emotions[a] > det.emotions[b] ? a : b);
+
+            ctx.fillStyle = 'red';
+            ctx.font = '16px Arial';
+            ctx.fillText(`${det.age[0]}-${det.age[1]},${det.gender} ${maxEmotion}:${det.emotions[maxEmotion]}`, det.left, det.top - 5);
+        };
+
+        imageUpload.addEventListener('change', async (event) => {
+            const { drawImage } = await import('./ui.js');
+
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
@@ -41,18 +53,8 @@ if (typeof cv !== 'undefined') {
                     img.onload = () => {
                         canvas.width = img.width;
                         canvas.height = img.height;
-                        drawImage(ctx, img).then(async () => {
-                            const srcMat = cv.imread(canvas);
-                            const detections = detectFaces(srcMat);
-                            detections.forEach((det) => {
-                                ctx.strokeStyle = 'red';
-                                ctx.lineWidth = 2;
-                                ctx.strokeRect(det.x_min, det.y_min, det.x_max - det.x_min, det.y_max - det.y_min);
-                            });
-                            const emotions = await detectEmotion(detections, srcMat.cols, srcMat.rows, srcMat)
-                            drawEmotionLabels(ctx, emotions);
-                            srcMat.delete();
-                        });
+                        drawImage(ctx, img);
+                        setTimeout(inferance, 10);
                     };
                     img.src = reader.result;
                 };
@@ -61,10 +63,11 @@ if (typeof cv !== 'undefined') {
                 console.error('No file selected or file type is unsupported');
             }
         });
-    };
-} else {
-    console.error('Failed to load OpenCV.js');
-}
-</script>
+
+        async function inferance() {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            worker.postMessage([imageData.height, imageData.width, imageData.data]);
+        }
+    </script>
 </body>
 </html>

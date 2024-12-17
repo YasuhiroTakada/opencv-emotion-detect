@@ -1,4 +1,4 @@
-export async function drawImage(ctx, img) {
+export function drawImage(ctx, img) {
     const width = img.width;
     const height = img.height;
     // Draw the image on the canvas
